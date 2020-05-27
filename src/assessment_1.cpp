@@ -49,6 +49,32 @@ const GLFWvidmode * VideoMode_global = NULL;
 
 inline float sqr(float x) { return x*x; }
 
+/* A faster function for square root. ONLY WORKS for 32 bit float, should be ok for most platforms.
+This is directly taken from the url below, and used only for low-precision scenarios in this scope:
+https://www.codeproject.com/Articles/69941/Best-Square-Root-Method-Algorithm-Function-Precisi */
+float fast_sqrt(float x)
+ {
+   unsigned int i = *(unsigned int*) &x; 
+   // adjust bias
+   i  += 127 << 23;
+   // approximation of square root
+   i >>= 1; 
+   return *(float*) &i;
+ } 
+
+/* A faster function to calculate float powered an int with
+binary storage recursion. Time Complexity: O(logn)
+Inspired by geeksforgeeks.com's examples, reedited to work with floats. */
+float fast_pow(float x, int y){
+    float temp;
+    if(y==0) return 1; //base case
+
+    //recursion
+    temp = fast_pow(x, y/2);
+    if(y%2==0) return temp*temp;
+    else return x*temp*temp;
+}
+
 /* A simple function that uses a vector to fraction another.
 Basically times each row with each other. */
 void vec3_fraction(vec3 r, const vec3 a, const vec4 b){
@@ -68,7 +94,7 @@ void gen_phong_shade(const vec3 cl, const vec3 cp, const vec3 l, const vec3 e, c
 
     //calculate shade
     vec3 cphong;
-    vec3_scale(cphong, cp, pow(vec3_mul_inner(h,n),p));
+    vec3_scale(cphong, cp, fast_pow(vec3_mul_inner(h,n),p));
     vec3_fraction(cphong, cl, cphong);
     vec3_add(clambert, clambert, cphong);
 }
@@ -188,12 +214,12 @@ void drawCircle(float centerX, float centerY, float radius) {
             float x = (i+0.5-centerX);
             float y = (j+0.5-centerY);
 
-            float dist = sqrt(sqr(x) + sqr(y));
+            float dist = fast_sqrt(sqr(x) + sqr(y));
 
             if (dist <= radius) {
 
                 // This is the front-facing Z coordinate
-                float z = sqrt(radius*radius-dist*dist);
+                float z = fast_sqrt(radius*radius-dist*dist);
 
                 //get normalized normal for this point
                 vec3 norm = {x, y, z};
