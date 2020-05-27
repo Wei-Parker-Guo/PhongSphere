@@ -10,7 +10,11 @@
 #include <cmath>
 
 //include header file for glfw library so that we can use OpenGL
-#include <windows.h> //this has to be done because my system does not have FREETYPE, delete this line if platform is otherwise
+#ifdef _WIN32
+/* this has to be done because my system does not have FREETYPE, delete this line if platform is otherwise
+STRONGLY NOT RECOMMENDED for GLFW setup */
+#include <windows.h>
+#endif
 #include "linmath.h" //include GLFW's linear math for vector manipulation
 #include <GLFW/glfw3.h>
 #include <stdlib.h>
