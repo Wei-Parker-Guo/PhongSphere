@@ -5,9 +5,9 @@ Instructor: James O'Brien
 Wei Guo: wei.parker.guo.sg@gmail.com
 
 # References (Books & Used Libs Mainly)
-GLFW Version 3.2.1
-GLEW
-linmath.h under GLFW Dependencies
+1. GLFW Version 3.2.1
+2. GLEW
+3. linmath.h under GLFW Dependencies
 
 # USAGE
 1. ‘cd’ into your assignment directory, type into the Terminal the following step by step

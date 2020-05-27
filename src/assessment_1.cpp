@@ -49,6 +49,31 @@ const GLFWvidmode * VideoMode_global = NULL;
 
 inline float sqr(float x) { return x*x; }
 
+/* A simple function that uses a vector to fraction another.
+Basically times each row with each other. */
+void vec3_fraction(vec3 r, const vec3 a, const vec4 b){
+    r[0] = a[0] * b[0];
+    r[1] = a[1] * b[1];
+    r[2] = a[2] * b[2];
+}
+
+
+/* generate phong shade based on a precalculated lambertian shade
+equation: c = clambert + clcp(h.n)^p */
+void gen_phong_shade(const vec3 cl, const vec3 cp, const vec3 l, const vec3 e, const vec3 n, const int p, vec3 clambert){
+    //calculate h
+    vec3 h;
+    vec3_add(h, e, l);
+    vec3_norm(h,h);
+
+    //calculate shade
+    vec3 cphong;
+    vec3_scale(cphong, cp, pow(vec3_mul_inner(h,n),p));
+    vec3_fraction(cphong, cl, cphong);
+    vec3_add(clambert, clambert, cphong);
+}
+
+
 /* generate lambertian shade with another light source
  * equation: c = cr(ca + clmax(0, n.l))
  */
@@ -61,9 +86,7 @@ void gen_lambert_shade(const vec3 ca, const vec3 cr, const vec3 cl, const vec3 n
     vec3_scale(c, cl, r);
     vec3_add(c, c, ca);
     //apply reflect fraction
-    c[0] = c[0] * cr[0];
-    c[1] = c[1] * cr[1];
-    c[2] = c[2] * cr[2];
+    vec3_fraction(c, cr, c);
 }
 
 //****************************************************
@@ -179,8 +202,8 @@ void drawCircle(float centerX, float centerY, float radius) {
                 //generate lambertian shade
                 vec3 ca = {0.05,0.05,0.05};
                 vec3 cl = {1, 1, 1};
-                vec3 l = {1, 1, 1};
-                vec3 cr = {0, 0.5, 0.8};
+                vec3 l = {1, 1, 0.8};
+                vec3 cr = {0.9, 0.5, 0.5};
                 vec3 c;
 
                 //make light static (irrespondent to translation) for more interesting effects
@@ -188,7 +211,13 @@ void drawCircle(float centerX, float centerY, float radius) {
                 l[0]+=Translation[0];
                 l[1]+=Translation[1];
 
+                //generate lambert shade (note this step will also make the light normalized)
                 gen_lambert_shade(ca, cr, cl, norm, l, c);
+
+                //generate phong from the previous lambertian shade, with assumed view right down z axis
+                vec3 cp = {0.5,0.5,0.5};
+                vec3 e = {0, 0, 1};
+                gen_phong_shade(cl, cp, l, e, norm, 64, c);
 
                 setPixel(i, j, c[0], c[1], c[2]);
 
