@@ -10,11 +10,12 @@
 #include <cmath>
 
 //include header file for glfw library so that we can use OpenGL
+#include <windows.h> //this has to be done because my system does not have FREETYPE, delete this line if platform is otherwise
+#include "linmath.h" //include GLFW's linear math for vector manipulation
 #include <GLFW/glfw3.h>
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#include <windows.h>
 
 #ifdef _WIN32
 static DWORD lastTime;
@@ -48,6 +49,23 @@ const GLFWvidmode * VideoMode_global = NULL;
 
 inline float sqr(float x) { return x*x; }
 
+/* generate lambertian shade with another light source
+ * equation: c = cr(ca + clmax(0, n.l))
+ */
+void gen_lambert_shade(const vec3 ca, const vec3 cr, const vec3 cl, const vec3 n, vec3 l, vec3 c){
+    //normalize light vector
+    vec3_norm(l, l);
+
+    //reflectance
+    float r = max((float)0, vec3_mul_inner(n,l));
+    vec3_scale(c, cl, r);
+    vec3_add(c, c, ca);
+    //apply reflect fraction
+    c[0] = c[0] * cr[0];
+    c[1] = c[1] * cr[1];
+    c[2] = c[2] * cr[2];
+}
+
 //****************************************************
 // Simple init function
 //****************************************************
@@ -56,7 +74,6 @@ void initializeRendering()
 {
     glfwInit();
 }
-
 
 //****************************************************
 // A routine to set a pixel by drawing a GL point.  This is not a
@@ -82,16 +99,22 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
         // Hint on making up/down left/right work: the variable Translation [0] and [1].
                 
         case GLFW_KEY_ESCAPE: 
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+            break; 
         case GLFW_KEY_Q:      
             glfwSetWindowShouldClose(window, GLFW_TRUE); 
             break;
         case GLFW_KEY_LEFT :
+            Translation[0]-=5;
             break;
         case GLFW_KEY_RIGHT:
+            Translation[0]+=5;
             break;
         case GLFW_KEY_UP   :
+            Translation[1]+=5;
             break;
         case GLFW_KEY_DOWN :
+            Translation[1]-=5;
             break;
         case GLFW_KEY_F:
             if (action) {
@@ -107,8 +130,6 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 }
             }
             break;
-        case GLFW_KEY_SPACE: 
-            break;  
         default: 
             break;
     }
@@ -151,7 +172,25 @@ void drawCircle(float centerX, float centerY, float radius) {
                 // This is the front-facing Z coordinate
                 float z = sqrt(radius*radius-dist*dist);
 
-                setPixel(i, j, 1.0, 0.0, 0.0);
+                //get normalized normal for this point
+                vec3 norm = {x, y, z};
+                vec3_norm(norm, norm);
+
+                //generate lambertian shade
+                vec3 ca = {0.05,0.05,0.05};
+                vec3 cl = {1, 1, 1};
+                vec3 l = {1, 1, 1};
+                vec3 cr = {0, 0.5, 0.8};
+                vec3 c;
+
+                //make light static (irrespondent to translation) for more interesting effects
+                //(This won't make sense for directional light conceptually, thus disabled for it by default)
+                l[0]+=Translation[0];
+                l[1]+=Translation[1];
+
+                gen_lambert_shade(ca, cr, cl, norm, l, c);
+
+                setPixel(i, j, c[0], c[1], c[2]);
 
                 // This is amusing, but it assumes negative color values are treated reasonably.
                 // setPixel(i,j, x/radius, y/radius, z/radius );
@@ -182,7 +221,7 @@ void display( GLFWwindow* window )
     drawCircle(
         Width_global / 2.0 , 
         Height_global / 2.0 , 
-        min(Width_global, Height_global) * 0.8 / 2.0);  // What do you think this is doing?
+        min(Width_global, Height_global) * 0.8 / 2.0);  // present a sphere with max radius possible on screen
     glPopMatrix();
     
     glfwSwapBuffers(window);
@@ -220,6 +259,12 @@ void size_callback(GLFWwindow* window, int width, int height)
 
 int main(int argc, char *argv[]) {
 
+    //take user input
+    char buffer[20];
+    printf("Enter Options: ");
+    scanf(" %[^\n]", buffer);
+    printf(buffer);
+
     //This initializes glfw
     initializeRendering();
     
@@ -247,9 +292,9 @@ int main(int argc, char *argv[]) {
     glfwSetKeyCallback(window, key_callback);
                 
     while( !glfwWindowShouldClose( window ) ) // main loop to draw object again and again
-    {   
+    {
         display( window );
-                
+
         glfwPollEvents();        
     }
 
