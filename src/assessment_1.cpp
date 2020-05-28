@@ -7,6 +7,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <cmath>
 
 //include header file for glfw library so that we can use OpenGL
@@ -48,6 +49,16 @@ int  SizeY_saved_global;
 
 int  PosX_saved_global;
 int  PosY_saved_global;
+
+//parameters
+bool using_phong = true;
+bool using_WARD = false;
+vec3 ca = {0.05f,0.05f,0.05f}; //default ambient
+vec3 cr = {0.9f, 0.5f, 0.5f}; //default diffuse
+vec3 cp = {0.9f,0.5f,0.5f}; //default specular
+float pu = 0.1f; //default pu for anisotropic shade
+float pv = 0.2f; //default pv for anisotropic shade
+int p = 64; //default p for isotropic shade
 
 const GLFWvidmode * VideoMode_global = NULL;
 
@@ -128,7 +139,7 @@ void gen_phong_shade(const vec3 cl, const vec3 cp, const vec3 l, const vec3 e, c
 }
 
 /* generate anisotropic phong shade by dividing the normal into uv directions
-and calculating specular based on the Ward Anisotropic Distribution Model, finally adding the lambertian base shade.
+and calculating specular based on the Ward Anisotropic Distribution Model (a BRDF), finally adding the lambertian base shade.
 Notice this can't use our fast_pow since the exponential is float.
 The formula is referenced from this url:
 https://en.wikibooks.org/wiki/GLSL_Programming/Unity/Brushed_Metal */
@@ -270,11 +281,8 @@ void drawCircle(float centerX, float centerY, float radius) {
                 vec3 norm = {x, y, z};
                 vec3_norm(norm, norm);
 
-                //generate lambertian shade
-                vec3 ca = {0.05f,0.05f,0.05f};
                 vec3 cl = {1.0f, 1.0f, 1.0f};
                 vec3 l = {1.0f, 1.0f, 0.8f};
-                vec3 cr = {0.9f, 0.5f, 0.5f};
                 vec3 c = {0.0f, 0.0f, 0.0f};
 
                 //make light static (irrespondent to translation) for more interesting effects
@@ -286,13 +294,12 @@ void drawCircle(float centerX, float centerY, float radius) {
                 gen_lambert_shade(ca, cr, cl, norm, l, c);
 
                 //generate phong from the previous lambertian shade, with assumed view right down z axis
-                vec3 cp = {0.9f,0.5f,0.5f};
                 vec3 e = {0.0f, 0.0f, 1.0f};
-                //gen_phong_shade(cl, cp, l, e, norm, 64, c);
+                if(using_phong) gen_phong_shade(cl, cp, l, e, norm, p, c);
 
                 //generate anisotropic shade with pu and pv given (Note: pu and pv has to be culled to [0-1] for this to work)
                 //this can be used to simulate brushed metal or wooden surface, once an appropriate diffuse is given
-                gen_WARD_anisotropic_phong_shade(cl, cp, l, e, norm, 0.2f, 0.3f, y, c);
+                if(using_WARD) gen_WARD_anisotropic_phong_shade(cl, cp, l, e, norm, pu, pv, y, c);
 
                 setPixel(i, j, c[0], c[1], c[2]);
 
@@ -360,14 +367,97 @@ void size_callback(GLFWwindow* window, int width, int height)
 // the usual stuff, nothing exciting here
 //****************************************************
 
+enum token_code{
+    not_specified,
+    ambient,
+    diffuse,
+    specular,
+    set_pu,
+    set_pv,
+    set_p
+};
+
+token_code get_token_code(string const& token){
+    if (token == "-ka") return ambient;
+    if (token == "-kd") return diffuse;
+    if (token == "-ks") return specular;
+    if (token == "-spu") return set_pu;
+    if (token == "-spv") return set_pv;
+    if (token == "-sp") return set_p;
+    return not_specified;
+}
+
+//function to record rgb of a given cmd token
+void record_token_rgb(vec3 r, const vector<string> tokens){
+    r[0] = stof(tokens[1]);
+    r[1] = stof(tokens[2]);
+    r[2] = stof(tokens[3]);
+}
+
+void read_cmd_tokens(const vector<string> tokens){
+
+    switch (get_token_code(tokens[0])) {
+        case ambient:
+            record_token_rgb(ca, tokens);
+            break;
+
+        case diffuse:
+            record_token_rgb(cr, tokens);
+            break;
+        
+        case specular:
+            record_token_rgb(cp, tokens);
+            break;
+
+        case set_pu:
+            using_phong = false;
+            using_WARD = true;
+            pu = stof(tokens[1]);
+            break;
+        
+        case set_pv:
+            using_phong = false;
+            using_WARD = true;
+            pv = stof(tokens[1]);
+            break;
+        
+        case set_p:
+            using_phong = true;
+            using_WARD = false;
+            p = stoi(tokens[1]);
+            break;
+
+        default:
+            break;
+    }
+
+}
 
 int main(int argc, char *argv[]) {
 
     //take user input
-    char buffer[20];
-    printf("Enter Options: ");
-    scanf(" %[^\n]", buffer);
-    printf(buffer);
+    char buffer[32];
+    printf("Enter Options File: ");
+    scanf(" %32s", buffer);
+    printf("Initialzed using option file %s\n", buffer);
+
+    //open option file and record variables
+    ifstream input_stream(buffer);
+    if(!input_stream) printf("Can't open the option file, using default.");
+    
+    //read lines for values
+    vector<string> text;
+    string line;
+    while(getline(input_stream, line)) text.push_back(line);
+    input_stream.close();
+    for(int i=0; i<text.size();i++){
+        string cmd = text[i];
+        vector<string> split_cmds;
+        stringstream ss(cmd);
+        string token;
+        while(getline(ss, token, ' ')) split_cmds.push_back(token);
+        read_cmd_tokens(split_cmds);
+    }
 
     //This initializes glfw
     initializeRendering();

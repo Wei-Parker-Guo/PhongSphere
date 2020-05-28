@@ -15,6 +15,9 @@ Wei Guo: wei.parker.guo.sg@gmail.com
 3. cd build
 4. cmake ..
 5. make
+6. run the as1.exe in build
+7. if you wish to use custom setup for options, type the options line by line in a txt file in build and specify it when program opens.
+8. there is a template options.txt inside src, you can copy, rename and modify it to start quicker.
 
 # Keyboard features
 1. 'ESC': Exit
@@ -48,6 +51,7 @@ It is a number between 0 and max_float.
 
 • -sp p 
 This is the power coefficient on the specular term for an isotropic material. It is a number between 0 and max_float. (i.e. the same as setting pu and pv the the same value.)
+[NOTE] For efficiency pu now is an int, you can switch back to float if you edit all the fast_pow to regular power in assessment_1.cpp.
 
 • -pl x y z r g b 
 This adds a point light to the scene. The x y z values are the location of the light. The r g b values are it's color. Note that the x y z values are relative to the sphere. That is, the center of the sphere is at the origin and the radius of the sphere defines one unit of length. The Y direction is UP, the X direction is to the right on the screen, and the Z direction is "in your face." The r g b value are between 0 and max_float, NOT between 0 and 1 (that is, the r g b values encode the brightness of the light).
