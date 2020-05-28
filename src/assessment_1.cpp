@@ -59,10 +59,22 @@ vec3 cp = {0.9f,0.5f,0.5f}; //default specular
 float pu = 0.1f; //default pu for anisotropic shade
 float pv = 0.2f; //default pv for anisotropic shade
 int p = 64; //default p for isotropic shade
+vec3 dls[5]; //default directional light list
+vec3 dl_cs[5]; //dedault directional light color list
 
 const GLFWvidmode * VideoMode_global = NULL;
 
 inline float sqr(float x) { return x*x; }
+
+/* This function gets the direction and color stored in a particular light in a size 5 array. */
+void get_light(const vec3 dir_list[], const vec3 c_list[], const int light_n, vec3 dir, vec3 c){
+    dir[0] = dir_list[light_n][0];
+    dir[1] = dir_list[light_n][1];
+    dir[2] = dir_list[light_n][2];
+    c[0] = c_list[light_n][0];
+    c[1] = c_list[light_n][1];
+    c[2] = c_list[light_n][2];
+}
 
 /* A faster function for square root. ONLY WORKS for 32 bit float, should be ok for most platforms.
 This is directly taken from the url below, and used only for low-precision scenarios in this scope:
@@ -281,27 +293,38 @@ void drawCircle(float centerX, float centerY, float radius) {
                 vec3 norm = {x, y, z};
                 vec3_norm(norm, norm);
 
-                vec3 cl = {1.0f, 1.0f, 1.0f};
-                vec3 l = {1.0f, 1.0f, 0.8f};
-                vec3 c = {0.0f, 0.0f, 0.0f};
+                vec3 c_total = {0.0f, 0.0f, 0.0f};
 
                 //make light static (irrespondent to translation) for more interesting effects
                 //(This won't make sense for directional light conceptually, thus disabled for it by default)
-                l[0]+=Translation[0];
-                l[1]+=Translation[1];
+                
+                //shade for each light
+                for(int a=0; a<5; a++){
+                    //retrieve light
+                    vec3 l;
+                    vec3 cl;
+                    get_light(dls, dl_cs, a, l, cl);
+                    //only render a nonzero light
+                    if(vec3_len(l)>0){
+                        vec3 c;
 
-                //generate base lambert shade (note this step will also make the light normalized)
-                gen_lambert_shade(ca, cr, cl, norm, l, c);
+                        //generate base lambert shade (note this step will also make the light normalized)
+                        gen_lambert_shade(ca, cr, cl, norm, l, c);
 
-                //generate phong from the previous lambertian shade, with assumed view right down z axis
-                vec3 e = {0.0f, 0.0f, 1.0f};
-                if(using_phong) gen_phong_shade(cl, cp, l, e, norm, p, c);
+                        //generate phong from the previous lambertian shade, with assumed view right down z axis
+                        vec3 e = {0.0f, 0.0f, 1.0f};
+                        if(using_phong) gen_phong_shade(cl, cp, l, e, norm, p, c);
 
-                //generate anisotropic shade with pu and pv given (Note: pu and pv has to be culled to [0-1] for this to work)
-                //this can be used to simulate brushed metal or wooden surface, once an appropriate diffuse is given
-                if(using_WARD) gen_WARD_anisotropic_phong_shade(cl, cp, l, e, norm, pu, pv, y, c);
+                        //generate anisotropic shade with pu and pv given (Note: pu and pv has to be culled to [0-1] for this to work)
+                        //this can be used to simulate brushed metal or wooden surface, once an appropriate diffuse is given
+                        if(using_WARD) gen_WARD_anisotropic_phong_shade(cl, cp, l, e, norm, pu, pv, y, c);
 
-                setPixel(i, j, c[0], c[1], c[2]);
+                        //composite
+                        vec3_add(c_total, c_total, c);
+                    }
+                }
+
+                setPixel(i, j, c_total[0], c_total[1], c_total[2]);
 
                 // This is amusing, but it assumes negative color values are treated reasonably.
                 // setPixel(i,j, x/radius, y/radius, z/radius );
@@ -374,7 +397,8 @@ enum token_code{
     specular,
     set_pu,
     set_pv,
-    set_p
+    set_p,
+    add_dl
 };
 
 token_code get_token_code(string const& token){
@@ -384,6 +408,7 @@ token_code get_token_code(string const& token){
     if (token == "-spu") return set_pu;
     if (token == "-spv") return set_pv;
     if (token == "-sp") return set_p;
+    if (token == "-dl") return add_dl;
     return not_specified;
 }
 
@@ -392,6 +417,31 @@ void record_token_rgb(vec3 r, const vector<string> tokens){
     r[0] = stof(tokens[1]);
     r[1] = stof(tokens[2]);
     r[2] = stof(tokens[3]);
+}
+
+/* This function changes the direction and color stored in a particular light in a size 5 array. */
+void change_light(vec3 dir_list[], vec3 c_list[], int light_n, const vec3 dir, const vec3 c){
+    dir_list[light_n][0] = dir[0];
+    dir_list[light_n][1] = dir[1];
+    dir_list[light_n][2] = dir[2];
+    c_list[light_n][0] = c[0];
+    c_list[light_n][1] = c[1];
+    c_list[light_n][2] = c[2];
+}
+
+void record_token_light(vec3 light_l[], vec3 light_color_l[], const vector<string> tokens){
+    //find the first available light spot and add our light, if all occupied then do nothing
+    for(int i=0; i<5; i++){
+        vec3 l;
+        vec3 cl;
+        get_light(dls, dl_cs, i, l, cl);
+        if(vec3_len(l)==0){
+            vec3 nl = {stof(tokens[1]), stof(tokens[2]), stof(tokens[3])};
+            vec3 ncl = {stof(tokens[4]), stof(tokens[5]), stof(tokens[6])};
+            change_light(light_l, light_color_l, i, nl, ncl);
+            return;
+        }
+    }
 }
 
 void read_cmd_tokens(const vector<string> tokens){
@@ -427,6 +477,9 @@ void read_cmd_tokens(const vector<string> tokens){
             p = stoi(tokens[1]);
             break;
 
+        case add_dl:
+            record_token_light(dls, dl_cs, tokens);
+
         default:
             break;
     }
@@ -441,9 +494,19 @@ int main(int argc, char *argv[]) {
     scanf(" %32s", buffer);
     printf("Initialzed using option file %s\n", buffer);
 
+    //initialize lights
+    vec3 zero = {0.0f, 0.0f, 0.0f};
+    for(int i=0; i<5; i++) change_light(dls, dl_cs, 0, zero, zero);
+
     //open option file and record variables
     ifstream input_stream(buffer);
-    if(!input_stream) printf("Can't open the option file, using default.");
+    if(!input_stream){
+        printf("Can't open the option file, using default.");
+        //add a default directional light
+        vec3 l = {1.0f, 1.0f, 0.8f};
+        vec3 cl = {0.8f, 0.8f, 0.8f};
+        change_light(dls, dl_cs, 0, l, cl);
+    }
     
     //read lines for values
     vector<string> text;
@@ -494,11 +557,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
-
-
-
-
-
-
-

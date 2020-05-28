@@ -8,6 +8,7 @@ Wei Guo: wei.parker.guo.sg@gmail.com
 1. GLFW Version 3.2.1
 2. GLEW
 3. linmath.h under GLFW Dependencies
+4. Code references are enclosed as inline comments.
 
 # USAGE
 1. ‘cd’ into your assignment directory, type into the Terminal the following step by step
