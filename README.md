@@ -59,3 +59,13 @@ This adds a point light to the scene. The x y z values are the location of the l
 
 • -dl x y z r g b 
 This adds a directional light to the scene. The x y z values are the direction that the light points in. The r g b values are it's color. See -pl for coordinate system notes.
+
+# Additonal Features for Assessment 1
+
+Command Line Options:
+
+• -toon cc1-r cc1-g cc2-b cc2-r cc2-g cc2-b
+This renders the sphere with a cartoon like artistic shader. cc1's rgb and cc2's rgb values need to be provided for cool and warm color blending.
+
+• -toonl layer
+This sets the layers of specular a toon can have, should be a positive nonzero interger.

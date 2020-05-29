@@ -53,6 +53,7 @@ int  PosY_saved_global;
 //parameters
 bool using_phong = true;
 bool using_WARD = false;
+bool using_toon = false;
 vec3 ca = {0.05f,0.05f,0.05f}; //default ambient
 vec3 cr = {0.9f, 0.5f, 0.5f}; //default diffuse
 vec3 cp = {0.9f,0.5f,0.5f}; //default specular
@@ -60,9 +61,12 @@ float pu = 0.1f; //default pu for anisotropic shade
 float pv = 0.2f; //default pv for anisotropic shade
 int p = 64; //default p for isotropic shade
 vec3 dls[5]; //default directional light list
-vec3 dl_cs[5]; //dedault directional light color list
+vec3 dl_cs[5]; //default directional light color list
 vec3 pls[5]; //default point light list
 vec3 pl_cs[5]; //default point light color list
+vec3 cc1 = {0.4, 0.4, 0.7}; //default toon color 1
+vec3 cc2 = {0.8, 0.6, 0.6}; //default toon color 2
+float toonl = 5.0f; //deafault toon layer number
 
 const GLFWvidmode * VideoMode_global = NULL;
 
@@ -185,6 +189,59 @@ void gen_WARD_anisotropic_phong_shade(const vec3 cl, const vec3 cp, const vec3 l
     vec3_cull(clambert);
 }
 
+// A simple function that layers a color with ratio given
+void vec3_layer(vec3 r, const vec3 maxr, const float max_n, const float n){
+    //set to lowest layer color
+    r[0] = 0.0f;
+    r[1] = 0.0f;
+    r[2] = 0.0f;
+
+    //a color add for each layer
+    vec3 cadd;
+    vec3_scale(cadd, maxr, 1/max_n);
+
+    //cal current layer color
+    for(float i=0.0f; i<n; i+=1.0f){
+        vec3_add(r, r, cadd);
+    }
+}
+
+/* generate cartoon like artistic shade based linear blend of a warm color and a cold color
+it also takes a phong highlight base and linearly layered the specular to put on top of basic shade
+with respect to light source. cc2 is warm cc1 is cold. It also takes a layer param for rendering layered speculars. */
+void gen_toon_shade(const vec3 cc1, const vec3 cc2, const vec3 l, const vec3 cl, const vec3 cp, const float toonl, const vec3 e, const vec3 norm, vec3 cphong){
+    //get a normalized light
+    vec3 nl;
+    vec3_norm(nl, l);
+
+    //draw silhouette
+    if(vec3_mul_inner(e,norm)<=0.15f){
+        vec3_sub(cphong, cphong, cphong);
+        return;
+    }
+
+    //treat the highlight as linearly distributed (layers)
+    float light_value = vec3_len(cphong);
+    vec3 max_reflect;
+    vec3_fraction(max_reflect, cl, cp);
+    float max_light = vec3_len(max_reflect);
+    for(float i=0.0f; i<toonl; i+=1.0f){
+        if ( light_value < (max_light/toonl*(i+1.0f)) && light_value > (max_light/toonl*i) ) {
+            vec3_layer(cphong, cl, toonl, i+1.0f);
+            break;
+        }
+    }
+
+    //calculate a linear blend
+    float kw = (1 + vec3_mul_inner(norm, nl))/2;
+    vec3 c_warm;
+    vec3 c_cold;
+    vec3_scale(c_warm, cc2, kw);
+    vec3_scale(c_cold, cc1, 1.0f - kw);
+    vec3_add(cphong, cphong, c_cold);
+    vec3_add(cphong, cphong, c_warm);
+}
+
 //****************************************************
 // Simple init function
 //****************************************************
@@ -278,6 +335,7 @@ void drawCircle(float centerX, float centerY, float radius) {
     int maxJ = min(Height_global-1,(int)ceil(centerY+radius));
 
     float mv_ratio = min(Width_global, Height_global) * 0.8 / 2.0;
+    vec3 e = {0.0f, 0.0f, 1.0f};
 
     for (int i = 0; i < Width_global; i++) {
         for (int j = 0; j < Height_global; j++) {
@@ -324,18 +382,20 @@ void drawCircle(float centerX, float centerY, float radius) {
 
                     //only render a nonzero light
                     if(vec3_len(l)>0){
-                        vec3 c;
+                        vec3 c = {0.0f, 0.0f, 0.0f};
 
                         //generate base lambert shade (note this step will also make the light normalized)
-                        gen_lambert_shade(ca, cr, cl, norm, l, c);
+                        if(!using_toon) gen_lambert_shade(ca, cr, cl, norm, l, c);
 
                         //generate phong from the previous lambertian shade, with assumed view right down z axis
-                        vec3 e = {0.0f, 0.0f, 1.0f};
                         if(using_phong) gen_phong_shade(cl, cp, l, e, norm, p, c);
 
                         //generate anisotropic shade with pu and pv given (Note: pu and pv has to be culled to [0-1] for this to work)
                         //this can be used to simulate brushed metal or wooden surface, once an appropriate diffuse is given
                         if(using_WARD) gen_WARD_anisotropic_phong_shade(cl, cp, l, e, norm, pu, pv, y, c);
+
+                        //generate toon shade if set toon options
+                        if(using_toon) gen_toon_shade(cc1, cc2, l, cl, cp, toonl, e, norm, c);
 
                         //composite
                         vec3_add(c_total, c_total, c);
@@ -360,7 +420,8 @@ void drawCircle(float centerX, float centerY, float radius) {
 
 void display( GLFWwindow* window )
 {
-    glClearColor( 0.0f, 0.0f, 0.0f, 0.0f );      //clear background screen to black
+    if(!using_toon) glClearColor( 0.0f, 0.0f, 0.0f, 0.0f );      //clear background screen to black if not using toon shade
+    if(using_toon) glClearColor(1.0f, 1.0f, 1.0f, 0.0f); //clear background to white to see silhouttes of toon shade
     
     glClear(GL_COLOR_BUFFER_BIT);                // clear the color buffer (sets everything to black)
     
@@ -417,7 +478,9 @@ enum token_code{
     set_pv,
     set_p,
     add_dl,
-    add_pl
+    add_pl,
+    toon,
+    set_toon_layers
 };
 
 token_code get_token_code(string const& token){
@@ -429,6 +492,8 @@ token_code get_token_code(string const& token){
     if (token == "-sp") return set_p;
     if (token == "-dl") return add_dl;
     if (token == "-pl") return add_pl;
+    if (token == "-toon") return toon;
+    if (token == "-toonl") return set_toon_layers;
     return not_specified;
 }
 
@@ -482,18 +547,21 @@ void read_cmd_tokens(const vector<string> tokens){
         case set_pu:
             using_phong = false;
             using_WARD = true;
-            pu = stof(tokens[1]);
+            using_toon = false;
+            pu = 1.0f/stof(tokens[1]);
             break;
         
         case set_pv:
             using_phong = false;
             using_WARD = true;
-            pv = stof(tokens[1]);
+            using_toon = false;
+            pv = 1.0f/stof(tokens[1]);
             break;
         
         case set_p:
             using_phong = true;
             using_WARD = false;
+            using_toon = false;
             p = stoi(tokens[1]);
             break;
 
@@ -503,6 +571,23 @@ void read_cmd_tokens(const vector<string> tokens){
 
         case add_pl:
             record_token_light(pls, pl_cs, tokens);
+            break;
+
+        case toon:
+            using_phong = true;
+            using_WARD = false;
+            using_toon = true;
+            record_token_rgb(cc1, tokens);
+            cc2[0] = stof(tokens[4]);
+            cc2[1] = stof(tokens[5]);
+            cc2[2] = stof(tokens[6]);
+            break;
+
+        case set_toon_layers:
+            using_phong = true;
+            using_WARD = false;
+            using_toon = true;
+            toonl = stof(tokens[1]);
             break;
 
         default:
