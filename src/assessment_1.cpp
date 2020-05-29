@@ -61,6 +61,8 @@ float pv = 0.2f; //default pv for anisotropic shade
 int p = 64; //default p for isotropic shade
 vec3 dls[5]; //default directional light list
 vec3 dl_cs[5]; //dedault directional light color list
+vec3 pls[5]; //default point light list
+vec3 pl_cs[5]; //default point light color list
 
 const GLFWvidmode * VideoMode_global = NULL;
 
@@ -222,16 +224,16 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
             glfwSetWindowShouldClose(window, GLFW_TRUE); 
             break;
         case GLFW_KEY_LEFT :
-            Translation[0]-=5;
+            Translation[0]-=1.0f;
             break;
         case GLFW_KEY_RIGHT:
-            Translation[0]+=5;
+            Translation[0]+=1.0f;
             break;
         case GLFW_KEY_UP   :
-            Translation[1]+=5;
+            Translation[1]+=1.0f;
             break;
         case GLFW_KEY_DOWN :
-            Translation[1]-=5;
+            Translation[1]-=1.0f;
             break;
         case GLFW_KEY_F:
             if (action) {
@@ -275,6 +277,8 @@ void drawCircle(float centerX, float centerY, float radius) {
     int minJ = max(0,(int)floor(centerY-radius));
     int maxJ = min(Height_global-1,(int)ceil(centerY+radius));
 
+    float mv_ratio = min(Width_global, Height_global) * 0.8 / 2.0;
+
     for (int i = 0; i < Width_global; i++) {
         for (int j = 0; j < Height_global; j++) {
 
@@ -295,15 +299,29 @@ void drawCircle(float centerX, float centerY, float radius) {
 
                 vec3 c_total = {0.0f, 0.0f, 0.0f};
 
-                //make light static (irrespondent to translation) for more interesting effects
+                //also make light static (irrespondent to translation) for more interesting effects
                 //(This won't make sense for directional light conceptually, thus disabled for it by default)
-                
                 //shade for each light
-                for(int a=0; a<5; a++){
-                    //retrieve light
+                for(int a=0; a<10; a++){
+                    //retrieve directional light for first 5 iteration, spotlight for next 5
                     vec3 l;
                     vec3 cl;
-                    get_light(dls, dl_cs, a, l, cl);
+                    if(a<5) get_light(dls, dl_cs, a, l, cl); //raw light info
+                    //if point light recal light direction
+                    else{
+                        get_light(pls, pl_cs, a-5, l, cl);
+
+                        //move light with translation (keep static)
+                        vec3 trans = {Translation[0]/mv_ratio, Translation[1]/mv_ratio, Translation[2]/mv_ratio};
+                        vec3_add(l, l, trans);
+
+                        //if the light is inside the unit sphere don't draw, doesn't make sense
+                        if(vec3_len(l)<1) continue;
+
+                        //cal direction
+                        vec3_sub(l, l, norm);
+                    }
+
                     //only render a nonzero light
                     if(vec3_len(l)>0){
                         vec3 c;
@@ -398,7 +416,8 @@ enum token_code{
     set_pu,
     set_pv,
     set_p,
-    add_dl
+    add_dl,
+    add_pl
 };
 
 token_code get_token_code(string const& token){
@@ -409,6 +428,7 @@ token_code get_token_code(string const& token){
     if (token == "-spv") return set_pv;
     if (token == "-sp") return set_p;
     if (token == "-dl") return add_dl;
+    if (token == "-pl") return add_pl;
     return not_specified;
 }
 
@@ -479,6 +499,11 @@ void read_cmd_tokens(const vector<string> tokens){
 
         case add_dl:
             record_token_light(dls, dl_cs, tokens);
+            break;
+
+        case add_pl:
+            record_token_light(pls, pl_cs, tokens);
+            break;
 
         default:
             break;
@@ -492,11 +517,14 @@ int main(int argc, char *argv[]) {
     char buffer[32];
     printf("Enter Options File: ");
     scanf(" %32s", buffer);
-    printf("Initialzed using option file %s\n", buffer);
+    printf("Initialzed using option file [%s]\n", buffer);
 
     //initialize lights
     vec3 zero = {0.0f, 0.0f, 0.0f};
-    for(int i=0; i<5; i++) change_light(dls, dl_cs, 0, zero, zero);
+    for(int i=0; i<5; i++){
+        change_light(dls, dl_cs, 0, zero, zero);
+        change_light(pls, pl_cs, 0, zero, zero);
+    }
 
     //open option file and record variables
     ifstream input_stream(buffer);
