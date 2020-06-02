@@ -8,7 +8,6 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <cmath>
 
 //include header file for glfw library so that we can use OpenGL
 #ifdef _WIN32
@@ -17,10 +16,14 @@ STRONGLY NOT RECOMMENDED for GLFW setup */
 #include <windows.h>
 #endif
 #include "linmath.h" //include GLFW's linear math for vector manipulation
+#include "fast_math.h" //include a faster version of some math ops we wrote
 #include <GLFW/glfw3.h>
 #include <stdlib.h>
 #include <time.h>
-#include <math.h>
+
+//shaders
+#include "basic_shaders.h"
+#include "layered_toon_shader.h"
 
 #ifdef _WIN32
 static DWORD lastTime;
@@ -70,8 +73,6 @@ float toonl = 5.0f; //deafault toon layer number
 
 const GLFWvidmode * VideoMode_global = NULL;
 
-inline float sqr(float x) { return x*x; }
-
 /* This function gets the direction and color stored in a particular light in a size 5 array. */
 void get_light(const vec3 dir_list[], const vec3 c_list[], const int light_n, vec3 dir, vec3 c){
     dir[0] = dir_list[light_n][0];
@@ -80,166 +81,6 @@ void get_light(const vec3 dir_list[], const vec3 c_list[], const int light_n, ve
     c[0] = c_list[light_n][0];
     c[1] = c_list[light_n][1];
     c[2] = c_list[light_n][2];
-}
-
-/* A faster function for square root. ONLY WORKS for 32 bit float, should be ok for most platforms.
-This is directly taken from the url below, and used only for low-precision scenarios in this scope:
-https://www.codeproject.com/Articles/69941/Best-Square-Root-Method-Algorithm-Function-Precisi 
-Not used currently for better looks of a smoother sphere */
-float fast_sqrt(float x)
- {
-   unsigned int i = *(unsigned int*) &x; 
-   // adjust bias
-   i  += 127 << 23;
-   // approximation of square root
-   i >>= 1; 
-   return *(float*) &i;
- } 
-
-/* A faster function to calculate float powered an int with
-binary storage recursion. Time Complexity: O(logn)
-Inspired by geeksforgeeks.com's examples, reedited to work with floats. */
-float fast_pow(float x, int y){
-    float temp;
-    if(y==0) return 1; //base case
-
-    //recursion
-    temp = fast_pow(x, y/2);
-    if(y%2==0) return temp*temp;
-    else return x*temp*temp;
-}
-
-/* A simple function to make sure every channel for a color stays in [0-1]
-could be disabled for better efficiency */
-void vec3_cull(vec3 r){
-    r[0] = min(1.0f, r[0]);
-    r[1] = min(1.0f, r[1]);
-    r[2] = min(1.0f, r[2]);
-}
-
-/* A simple function that uses a vector to fraction another.
-Basically times each row with each other. */
-void vec3_fraction(vec3 r, const vec3 a, const vec4 b){
-    r[0] = a[0] * b[0];
-    r[1] = a[1] * b[1];
-    r[2] = a[2] * b[2];
-}
-
-/* generate lambertian shade with another light source
- * equation: c = cr(ca + clmax(0, n.l))
- */
-void gen_lambert_shade(const vec3 ca, const vec3 cr, const vec3 cl, const vec3 n, vec3 l, vec3 c){
-    //normalize light vector
-    vec3_norm(l, l);
-
-    //reflectance
-    float r = max(0.0f, vec3_mul_inner(n,l));
-    vec3_scale(c, cl, r);
-    vec3_add(c, c, ca);
-    //apply reflect fraction
-    vec3_fraction(c, cr, c);
-}
-
-/* generate phong shade based on a precalculated lambertian shade
-equation: c = clambert + clcp(h.n)^p */
-void gen_phong_shade(const vec3 cl, const vec3 cp, const vec3 l, const vec3 e, const vec3 n, const int p, vec3 clambert){
-    //calculate h
-    vec3 h;
-    vec3_add(h, e, l);
-    vec3_norm(h,h);
-
-    //calculate shade
-    vec3 cphong;
-    vec3_scale(cphong, cp, fast_pow(vec3_mul_inner(h,n),p));
-    vec3_fraction(cphong, cl, cphong);
-    vec3_add(clambert, clambert, cphong);
-    vec3_cull(clambert);
-}
-
-/* generate anisotropic phong shade by dividing the normal into uv directions
-and calculating specular based on the Ward Anisotropic Distribution Model (a BRDF), finally adding the lambertian base shade.
-Notice this can't use our fast_pow since the exponential is float.
-The formula is referenced from this url:
-https://en.wikibooks.org/wiki/GLSL_Programming/Unity/Brushed_Metal */
-void gen_WARD_anisotropic_phong_shade(const vec3 cl, const vec3 cp, const vec3 l, const vec3 e, const vec3 n, const float pu, const float pv, const float y, vec3 clambert){
-    //calculate h
-    vec3 h;
-    vec3_add(h, e, l);
-    vec3_norm(h,h);
-
-    //calculate u and v unit vector
-    vec3 v;
-    vec3 y_v = {0.0f, y, 0.0f};
-    vec3_scale(v, n, vec3_mul_inner(n,y_v));
-    vec3_sub(v, y_v, v);
-    vec3_norm(v,v);
-    vec3 u;
-    vec3_mul_cross(u, v, n);
-    vec3_norm(u,u);
-    
-    //calculate kspecular
-    vec3 kspec;
-    vec3_scale(kspec, cp, sqrt( max(0.0f, vec3_mul_inner(n,l) / vec3_mul_inner(n,l)*vec3_mul_inner(n,e)) )); //first term of the multiplication
-    vec3_scale(kspec, kspec, 1.0f / (4.0f*PI*pu*pv) ); //second term
-    vec3_scale(kspec, kspec, exp( -2.0f * (sqr(vec3_mul_inner(h,u)/pu) + sqr(vec3_mul_inner(h,v)/pv)) / (1.0f+vec3_mul_inner(h,n)) ) ); //thrid term
-    vec3_fraction(kspec, kspec, cl); //control one more time by light color
-
-    //add specular to lambertian shade
-    vec3_add(clambert, clambert, kspec);
-    vec3_cull(clambert);
-}
-
-// A simple function that layers a color with ratio given
-void vec3_layer(vec3 r, const vec3 maxr, const float max_n, const float n){
-    //set to lowest layer color
-    r[0] = 0.0f;
-    r[1] = 0.0f;
-    r[2] = 0.0f;
-
-    //a color add for each layer
-    vec3 cadd;
-    vec3_scale(cadd, maxr, 1/max_n);
-
-    //cal current layer color
-    for(float i=0.0f; i<n; i+=1.0f){
-        vec3_add(r, r, cadd);
-    }
-}
-
-/* generate cartoon like artistic shade based linear blend of a warm color and a cold color
-it also takes a phong highlight base and linearly layered the specular to put on top of basic shade
-with respect to light source. cc2 is warm cc1 is cold. It also takes a layer param for rendering layered speculars. */
-void gen_toon_shade(const vec3 cc1, const vec3 cc2, const vec3 l, const vec3 cl, const vec3 cp, const float toonl, const vec3 e, const vec3 norm, vec3 cphong){
-    //get a normalized light
-    vec3 nl;
-    vec3_norm(nl, l);
-
-    //draw silhouette
-    if(vec3_mul_inner(e,norm)<=0.15f){
-        vec3_sub(cphong, cphong, cphong);
-        return;
-    }
-
-    //treat the highlight as linearly distributed (layers)
-    float light_value = vec3_len(cphong);
-    vec3 max_reflect;
-    vec3_fraction(max_reflect, cl, cp);
-    float max_light = vec3_len(max_reflect);
-    for(float i=0.0f; i<toonl; i+=1.0f){
-        if ( light_value < (max_light/toonl*(i+1.0f)) && light_value > (max_light/toonl*i) ) {
-            vec3_layer(cphong, cl, toonl, i+1.0f);
-            break;
-        }
-    }
-
-    //calculate a linear blend
-    float kw = (1 + vec3_mul_inner(norm, nl))/2;
-    vec3 c_warm;
-    vec3 c_cold;
-    vec3_scale(c_warm, cc2, kw);
-    vec3_scale(c_cold, cc1, 1.0f - kw);
-    vec3_add(cphong, cphong, c_cold);
-    vec3_add(cphong, cphong, c_warm);
 }
 
 //****************************************************

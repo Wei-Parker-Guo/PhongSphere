@@ -7,11 +7,15 @@ cmake_minimum_required(VERSION 2.8)
 
 # enable this to build starter code
 # set(APPLICATION_SOURCE
-    
 #     example_01.cpp
 # )
 
-set(ASSESSMENT1_SOURCE assessment_1.cpp)
+set(ASSESSMENT1_SOURCE
+    layered_toon_shader.cpp
+    basic_shaders.cpp
+    fast_math.cpp
+    assessment_1.cpp
+)
 
 #-------------------------------------------------------------------------------
 # Set include directories
