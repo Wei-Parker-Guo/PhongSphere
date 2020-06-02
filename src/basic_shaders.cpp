@@ -16,16 +16,17 @@ void gen_lambert_shade(const vec3 ca, const vec3 cr, const vec3 cl, const vec3 n
 }
 
 /* generate phong shade based on a precalculated lambertian shade
-equation: c = clambert + clcp(h.n)^p */
+equation: c = clambert + clcpmax(e.r)^p */
 void gen_phong_shade(const vec3 cl, const vec3 cp, const vec3 l, const vec3 e, const vec3 n, const int p, vec3 clambert){
-    //calculate h
-    vec3 h;
-    vec3_add(h, e, l);
-    vec3_norm(h,h);
+    //calculate r
+    vec3 r;
+    vec3_scale( r, n, 2.0f*vec3_mul_inner(l,n) );
+    vec3_sub(r, r, l);
+    vec3_norm(r,r);
 
     //calculate shade
     vec3 cphong;
-    vec3_scale(cphong, cp, fast_pow(vec3_mul_inner(h,n),p));
+    vec3_scale(cphong, cp, fast_pow(std::max(0.0f,vec3_mul_inner(e,r)),p));
     vec3_fraction(cphong, cl, cphong);
     vec3_add(clambert, clambert, cphong);
     vec3_cull(clambert);
