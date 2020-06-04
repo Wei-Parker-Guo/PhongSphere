@@ -2,7 +2,8 @@
 # Kayvon Fatahalian, Keenan Crane,
 # Sky Gao, Bryce Summers, Michael Choquette.
 cmake_minimum_required(VERSION 2.8)
-project(Assignment1 LANGUAGES CXX CUDA)
+project(Assignment1)
+# project(Assignment1 LANGUAGES CXX CUDA) use this line to enable GPU build (need an NVIDIA GPU for CUDA!)
 
 #-------------------------------------------------------------------------------
 # Build options

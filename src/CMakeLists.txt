@@ -17,12 +17,13 @@ set(ASSESSMENT1_SOURCE
     assessment_1.cpp
 )
 
-set(ASSESSMENT1_GPU_SOURCE
-    layered_toon_shader.cpp
-    basic_shaders.cpp
-    fast_math.cpp
-    assessment_1cu.cu
-)
+# enable this to build GPU version
+# set(ASSESSMENT1_GPU_SOURCE
+#     layered_toon_shader.cpp
+#     basic_shaders.cpp
+#     fast_math.cpp
+#     assessment_1cu.cu
+# )
 
 #-------------------------------------------------------------------------------
 # Set include directories
@@ -48,25 +49,26 @@ link_directories(
 #-------------------------------------------------------------------------------
 
 # enable this to build cuda GPU code
-add_executable(as1cu ${ASSESSMENT1_GPU_SOURCE})
-target_link_libraries( as1cu
-     glew ${GLEW_LIBRARIES}
-     glfw ${GLFW_LIBRARIES}
-     ${OPENGL_LIBRARIES}
- #    ${FREETYPE_LIBRARIES}
-     ${CMAKE_THREADS_INIT}
- )
+# add_executable(as1cu ${ASSESSMENT1_GPU_SOURCE})
+# target_link_libraries( as1cu
+#      glew ${GLEW_LIBRARIES}
+#      glfw ${GLFW_LIBRARIES}
+#      ${OPENGL_LIBRARIES}
+#  #    ${FREETYPE_LIBRARIES}
+#      ${CMAKE_THREADS_INIT}
+#  )
 
-# Request that particles be built with -std=c++11
-# As this is a public compile feature anything that links to 
-# particles will also build with -std=c++11
-target_compile_features(as1cu PUBLIC cxx_std_11)
+# enable this to build GPU version
+# # Request that particles be built with -std=c++11
+# # As this is a public compile feature anything that links to 
+# # particles will also build with -std=c++11
+# target_compile_features(as1cu PUBLIC cxx_std_11)
  
-# We need to explicitly state that we need all CUDA files in the 
-# particle library to be built with -dc as the member functions 
-# could be called by other libraries and executables
-set_target_properties( as1cu
-                       PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+# # We need to explicitly state that we need all CUDA files in the 
+# # particle library to be built with -dc as the member functions 
+# # could be called by other libraries and executables
+# set_target_properties( as1cu
+#                        PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
 
 add_executable(as1 ${ASSESSMENT1_SOURCE})
@@ -90,5 +92,5 @@ endif(APPLE)
 # Put executable in build directory root
 set(EXECUTABLE_OUTPUT_PATH ..)
 
-# Install to project root
-install(TARGETS as1 as1cu DESTINATION ${Assignment1_SOURCE_DIR})
+# Install to project root, add as1cu to build GPU version also
+install(TARGETS as1 DESTINATION ${Assignment1_SOURCE_DIR})
