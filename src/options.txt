@@ -15,3 +15,6 @@
 -dl 0.8 0.8 0.8 0.8 0.8 0.8
 -toon 0.2 0.2 0.5 0.8 0.6 0.6
 -toonl 10
+-transludepth 0.3
+-transludd 0.9
+-transluds 0.001

@@ -24,6 +24,7 @@ STRONGLY NOT RECOMMENDED for GLFW setup */
 //shaders
 #include "basic_shaders.h"
 #include "layered_toon_shader.h"
+#include "translucent_shader.h"
 
 #ifdef _WIN32
 static DWORD lastTime;
@@ -57,6 +58,7 @@ int  PosY_saved_global;
 bool using_phong = true;
 bool using_WARD = false;
 bool using_toon = false;
+bool using_translucent = false;
 vec3 ca = {0.05f,0.05f,0.05f}; //default ambient
 vec3 cr = {0.9f, 0.5f, 0.5f}; //default diffuse
 vec3 cp = {0.9f,0.5f,0.5f}; //default specular
@@ -69,7 +71,10 @@ vec3 pls[5]; //default point light list
 vec3 pl_cs[5]; //default point light color list
 vec3 cc1 = {0.4, 0.4, 0.7}; //default toon color 1
 vec3 cc2 = {0.8, 0.6, 0.6}; //default toon color 2
-float toonl = 5.0f; //deafault toon layer number
+float toonl = 5.0f; //default toon layer number
+float depth = 10.0f; //default depth for translucent material
+float dd = 0.5f; //default depth decay for translucent material, 0-1
+float ds = 0.01f; //default dipole scale for translucent material. 0-1
 
 const GLFWvidmode * VideoMode_global = NULL;
 
@@ -226,7 +231,7 @@ void drawCircle(float centerX, float centerY, float radius) {
                         vec3 c = {0.0f, 0.0f, 0.0f};
 
                         //generate base lambert shade (note this step will also make the light normalized)
-                        if(!using_toon) gen_lambert_shade(ca, cr, cl, norm, l, c);
+                        if(!using_toon && !using_translucent) gen_lambert_shade(ca, cr, cl, norm, l, c);
 
                         //generate phong from the previous lambertian shade, with assumed view right down z axis
                         if(using_phong) gen_phong_shade(cl, cp, l, e, norm, p, c);
@@ -238,11 +243,16 @@ void drawCircle(float centerX, float centerY, float radius) {
                         //generate toon shade if set toon options
                         if(using_toon) gen_toon_shade(cc1, cc2, l, cl, cp, toonl, e, norm, c);
 
+                        //generate translucent shade if set translucence
+                        if(using_translucent){
+                            gen_translucent_shade(ca, cr, cl, cp, l, e, norm, p, x, y, ds, dd, depth, c);
+                        }
+
                         //composite
                         vec3_add(c_total, c_total, c);
                     }
                 }
-
+                
                 setPixel(i, j, c_total[0], c_total[1], c_total[2]);
 
                 // This is amusing, but it assumes negative color values are treated reasonably.
@@ -321,7 +331,10 @@ enum token_code{
     add_dl,
     add_pl,
     toon,
-    set_toon_layers
+    set_toon_layers,
+    set_depth,
+    set_dd,
+    set_ds
 };
 
 token_code get_token_code(string const& token){
@@ -335,6 +348,9 @@ token_code get_token_code(string const& token){
     if (token == "-pl") return add_pl;
     if (token == "-toon") return toon;
     if (token == "-toonl") return set_toon_layers;
+    if (token == "-transludepth") return set_depth;
+    if (token == "-transludd") return set_dd;
+    if (token == "-transluds") return set_ds;
     return not_specified;
 }
 
@@ -389,6 +405,7 @@ void read_cmd_tokens(const vector<string> tokens){
             using_phong = false;
             using_WARD = true;
             using_toon = false;
+            using_translucent = false;
             pu = 1.0f/stof(tokens[1]);
             break;
         
@@ -396,6 +413,7 @@ void read_cmd_tokens(const vector<string> tokens){
             using_phong = false;
             using_WARD = true;
             using_toon = false;
+            using_translucent = false;
             pv = 1.0f/stof(tokens[1]);
             break;
         
@@ -403,6 +421,7 @@ void read_cmd_tokens(const vector<string> tokens){
             using_phong = true;
             using_WARD = false;
             using_toon = false;
+            using_translucent = false;
             p = stoi(tokens[1]);
             break;
 
@@ -418,6 +437,7 @@ void read_cmd_tokens(const vector<string> tokens){
             using_phong = true;
             using_WARD = false;
             using_toon = true;
+            using_translucent = false;
             record_token_rgb(cc1, tokens);
             cc2[0] = stof(tokens[4]);
             cc2[1] = stof(tokens[5]);
@@ -428,7 +448,32 @@ void read_cmd_tokens(const vector<string> tokens){
             using_phong = true;
             using_WARD = false;
             using_toon = true;
+            using_translucent = false;
             toonl = stof(tokens[1]);
+            break;
+
+        case set_depth:
+            using_translucent = true;
+            using_phong = false;
+            using_WARD = false;
+            using_toon = false;
+            depth = stof(tokens[1]);
+            break;
+
+        case set_dd:
+            using_translucent = true;
+            using_phong = false;
+            using_WARD = false;
+            using_toon = false;
+            dd = stof(tokens[1]);
+            break;
+
+        case set_ds:
+            using_translucent = true;
+            using_phong = false;
+            using_WARD = false;
+            using_toon = false;
+            ds = stof(tokens[1]);
             break;
 
         default:
@@ -441,7 +486,7 @@ int main(int argc, char *argv[]) {
 
     //take user input
     char buffer[32];
-    printf("Enter Options File: ");
+    printf("Enter Options File (max 32 chars): ");
     scanf(" %32s", buffer);
     printf("Initialzed using option file [%s]\n", buffer);
 

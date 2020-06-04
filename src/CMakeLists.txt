@@ -11,6 +11,7 @@ cmake_minimum_required(VERSION 2.8)
 # )
 
 set(ASSESSMENT1_SOURCE
+    translucent_shader.cpp
     layered_toon_shader.cpp
     basic_shaders.cpp
     fast_math.cpp
