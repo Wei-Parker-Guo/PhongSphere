@@ -25,6 +25,7 @@ STRONGLY NOT RECOMMENDED for GLFW setup */
 #include "basic_shaders.h"
 #include "layered_toon_shader.h"
 #include "translucent_shader.h"
+#include "sketch_shader.h"
 
 #ifdef _WIN32
 static DWORD lastTime;
@@ -59,6 +60,7 @@ bool using_phong = true;
 bool using_WARD = false;
 bool using_toon = false;
 bool using_translucent = false;
+bool using_sketch = false;
 vec3 ca = {0.05f,0.05f,0.05f}; //default ambient
 vec3 cr = {0.9f, 0.5f, 0.5f}; //default diffuse
 vec3 cp = {0.9f,0.5f,0.5f}; //default specular
@@ -75,6 +77,7 @@ float toonl = 5.0f; //default toon layer number
 float depth = 10.0f; //default depth for translucent material
 float dd = 0.5f; //default depth decay for translucent material, 0-1
 float ds = 0.01f; //default dipole scale for translucent material. 0-1
+vec2 line_dir = {0.5f, -0.5f}; //default line direction of sketch line for sketch shader
 
 const GLFWvidmode * VideoMode_global = NULL;
 
@@ -108,6 +111,15 @@ void setPixel(float x, float y, GLfloat r, GLfloat g, GLfloat b) {
     glVertex2f(x+0.5, y+0.5);  
     // The 0.5 is to target pixel centers
     // Note that some OpenGL implementations have created gaps in the past.
+}
+
+//another function to draw a GL line given parameters, for sketch shade
+void setLine(float x, float y, float x1, float y1, GLfloat r, GLfloat g, GLfloat b){
+    glBegin(GL_LINES);
+    glColor3f(r, g, b);
+    glVertex2f(x + 0.5f, y + 0.5f);
+    glVertex2f(x1 + 0.5f, y1 + 0.5f);
+    glEnd();
 }
 
 //****************************************************
@@ -243,9 +255,14 @@ void drawCircle(float centerX, float centerY, float radius) {
                         //generate toon shade if set toon options
                         if(using_toon) gen_toon_shade(cc1, cc2, l, cl, cp, toonl, e, norm, c);
 
-                        //generate translucent shade if set translucence
+                        //generate translucent shade if set translucence options
                         if(using_translucent){
                             gen_translucent_shade(ca, cr, cl, cp, l, e, norm, p, x, y, ds, dd, depth, c);
+                        }
+
+                        //geerate sketch shade if set sketch options
+                        if(using_sketch){
+                            gen_sketch_shade(ca, cr, cl, cp, l, e, norm, p, x, y, radius, line_dir, c);
                         }
 
                         //composite
@@ -254,7 +271,6 @@ void drawCircle(float centerX, float centerY, float radius) {
                 }
                 
                 setPixel(i, j, c_total[0], c_total[1], c_total[2]);
-
                 // This is amusing, but it assumes negative color values are treated reasonably.
                 // setPixel(i,j, x/radius, y/radius, z/radius );
                 
@@ -271,8 +287,8 @@ void drawCircle(float centerX, float centerY, float radius) {
 
 void display( GLFWwindow* window )
 {
-    if(!using_toon) glClearColor( 0.0f, 0.0f, 0.0f, 0.0f );      //clear background screen to black if not using toon shade
-    if(using_toon) glClearColor(1.0f, 1.0f, 1.0f, 0.0f); //clear background to white to see silhouttes of toon shade
+    if(!using_toon && !using_sketch) glClearColor( 0.0f, 0.0f, 0.0f, 0.0f );      //clear background screen to black if not using toon/sketch shade
+    else glClearColor(1.0f, 1.0f, 1.0f, 0.0f); //clear background to white to see silhouttes of toon shade
     
     glClear(GL_COLOR_BUFFER_BIT);                // clear the color buffer (sets everything to black)
     
@@ -334,7 +350,8 @@ enum token_code{
     set_toon_layers,
     set_depth,
     set_dd,
-    set_ds
+    set_ds,
+    set_sketch
 };
 
 token_code get_token_code(string const& token){
@@ -351,6 +368,7 @@ token_code get_token_code(string const& token){
     if (token == "-transludepth") return set_depth;
     if (token == "-transludd") return set_dd;
     if (token == "-transluds") return set_ds;
+    if (token == "-sketch") return set_sketch;
     return not_specified;
 }
 
@@ -406,6 +424,7 @@ void read_cmd_tokens(const vector<string> tokens){
             using_WARD = true;
             using_toon = false;
             using_translucent = false;
+            using_sketch = false;
             pu = 1.0f/stof(tokens[1]);
             break;
         
@@ -414,6 +433,7 @@ void read_cmd_tokens(const vector<string> tokens){
             using_WARD = true;
             using_toon = false;
             using_translucent = false;
+            using_sketch = false;
             pv = 1.0f/stof(tokens[1]);
             break;
         
@@ -422,6 +442,7 @@ void read_cmd_tokens(const vector<string> tokens){
             using_WARD = false;
             using_toon = false;
             using_translucent = false;
+            using_sketch = false;
             p = stoi(tokens[1]);
             break;
 
@@ -438,6 +459,7 @@ void read_cmd_tokens(const vector<string> tokens){
             using_WARD = false;
             using_toon = true;
             using_translucent = false;
+            using_sketch = false;
             record_token_rgb(cc1, tokens);
             cc2[0] = stof(tokens[4]);
             cc2[1] = stof(tokens[5]);
@@ -449,6 +471,7 @@ void read_cmd_tokens(const vector<string> tokens){
             using_WARD = false;
             using_toon = true;
             using_translucent = false;
+            using_sketch = false;
             toonl = stof(tokens[1]);
             break;
 
@@ -457,6 +480,7 @@ void read_cmd_tokens(const vector<string> tokens){
             using_phong = false;
             using_WARD = false;
             using_toon = false;
+            using_sketch = false;
             depth = stof(tokens[1]);
             break;
 
@@ -465,6 +489,7 @@ void read_cmd_tokens(const vector<string> tokens){
             using_phong = false;
             using_WARD = false;
             using_toon = false;
+            using_sketch = false;
             dd = stof(tokens[1]);
             break;
 
@@ -473,7 +498,17 @@ void read_cmd_tokens(const vector<string> tokens){
             using_phong = false;
             using_WARD = false;
             using_toon = false;
+            using_sketch = false;
             ds = stof(tokens[1]);
+            break;
+
+        case set_sketch:
+            using_sketch = true;
+            using_translucent = false;
+            using_phong = false;
+            using_WARD = false;
+            using_toon = false;
+            vec2_norm(line_dir, line_dir); //normalize line direction for sketch
             break;
 
         default:

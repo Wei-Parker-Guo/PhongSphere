@@ -33,4 +33,10 @@ void vec3_fraction(vec3 r, const vec3 a, const vec4 b){
     r[2] = a[2] * b[2];
 }
 
+void rgb_to_grayscale(vec3 r, const vec3 rgb){
+    for(int i=0; i < 3; i++){
+        r[i] = 0.3f * rgb[0] + 0.59f * rgb[1] + 0.11f * rgb[2];
+    }
+}
+
 float sqr(float x) { return x*x; }
