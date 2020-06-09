@@ -39,7 +39,7 @@ Wei Guo: wei.parker.guo.sg@gmail.com
 The picture below shows results of rendering with different shaders, given the parameters below each one.
 
 <p align="center">
-  <img width="960" height="1080" src="snaps_assembly.jpg">
+  <img width="960" height="1080" src="render_snapshots/snaps_assembly.jpg">
 </p>
 
 # Features for Assessment 1
