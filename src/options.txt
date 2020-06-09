@@ -18,3 +18,4 @@
 -transludepth 0.3
 -transludd 0.9
 -transluds 0.001
+-sketch
