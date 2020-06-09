@@ -2,7 +2,12 @@
 Instructor: James O'Brien
 
 # Implementer of This Project
+<p align="center">
+  <img width="256" height="256" src="https://github.com/Wei-Parker-Guo/PhongSphere/tree/master/render_snapshots/me.jpg">
+</p>
+<p align="center">
 Wei Guo: wei.parker.guo.sg@gmail.com
+</p>
 
 # References (Books & Used Libs Mainly)
 1. GLFW Version 3.2.1
@@ -29,7 +34,15 @@ Wei Guo: wei.parker.guo.sg@gmail.com
 6. '←': Translate objects left
 7. '→': Translate objects right
 
-# Features for Assessment 1 (Phong Sphere)
+# Render Results for Assessment 1 (Phong Sphere)
+
+The picture below shows results of rendering with different shaders, given the parameters below each one.
+
+<p align="center">
+  <img width="960" height="1080" src="https://github.com/Wei-Parker-Guo/PhongSphere/tree/master/render_snapshots/snaps_assembly.jpg">
+</p>
+
+# Features for Assessment 1
 
 Command Line Options:
 
@@ -69,3 +82,18 @@ This renders the sphere with a cartoon like artistic shader. cc1's rgb and cc2's
 
 • -toonl layer
 This sets the layers of specular a toon can have, should be a positive nonzero interger.
+
+• -toonl layer
+This sets the layers of specular a toon can have, should be a positive nonzero interger.
+
+• -transludepth n
+This sets the depth of the subsurface beneath, should normally set to be a very small float between 0-1.
+
+• -transludd n
+This sets the depth decay of the subsurface reflection (how much light is going to be sent back), should be a float between 0-1.
+
+• -transluds n
+This sets the diameter of the simulated microfacet dipole on subsurface for light transport, should be a very small float.
+
+• -sketch
+This sets the render to use an experimental sketch shader that manifests the object as lines and silhouttes.
