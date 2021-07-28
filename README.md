@@ -1,13 +1,5 @@
-# CS 184 Fall 2016
-Instructor: James O'Brien
-
 # Implementer of This Project
-<p align="center">
-  <img width="256" height="256" src="render_snapshots/me.jpg">
-</p>
-<p align="center">
 Wei Guo: wei.parker.guo.sg@gmail.com
-</p>
 
 # References (Books & Used Libs Mainly)
 1. GLFW Version 3.2.1
